@@ -1,38 +1,23 @@
 (ns real-world-clojure-api.core
   (:require [com.stuartsierra.component :as component]
-            [io.pedestal.http :as http]
-            [io.pedestal.http.route :as route]
             [real-world-clojure-api.config :as config]
-            [real-world-clojure-api.components.example-component :as example-component]))
-
-(defn respond-hello [request]
-  {:status 200 :body "Hello, world!"})
-
-
-(def routes
-  (route/expand-routes
-    #{["/greet" :get respond-hello :route-name :greet]}))
-
-(defn create-server
-  [config]
-  (http/create-server
-    {::http/routes routes
-     ::http/type   :jetty
-     ::http/join?  false
-     ::http/port   (-> config :server :port)}))
-
-(defn start [config]
-  (http/start (create-server config)))
+            [real-world-clojure-api.components.example-component :as example-component]
+            [real-world-clojure-api.components.pedestal-component :as pedestal-component]))
 
 (defn real-world-api-system
   [config]
   (component/system-map
-    :example-component (example-component/new-example-component config))
-  )
+    :example-component (example-component/new-example-component config)
+    :pedestal-component (component/using
+                          (pedestal-component/new-pedestal-component config)
+                          [:example-component])))
 
 (defn -main
   []
   (let [system (-> (config/read-config)
-        (real-world-api-system)
-        (component/start-system))]
-    (println "Starting RW Clojure API service with config")))
+                   (real-world-api-system)
+                   (component/start-system))]
+    (println "Starting RW Clojure API service with config")
+    (.addShutdownHook
+      (Runtime/getRuntime)
+      (new Thread #(component/stop-system system)))))
